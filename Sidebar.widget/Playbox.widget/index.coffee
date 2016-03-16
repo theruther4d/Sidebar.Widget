@@ -32,7 +32,18 @@ style: """
     background-size cover
     float left
     margin 0 8px 0 0
-    border-radius 50%
+    position relative
+
+    &__item
+      position: absolute
+      width: 100%
+      height: 100%
+      top: 0
+      left: 0
+      border-radius 50%
+
+      &.bottom
+        display none
 
   .text
     foat left
@@ -73,7 +84,10 @@ render: (output) ->
   # Create the DIVs for each piece of data.
   medianowHTML = "
     <div class='wrapper'>
-      <div class='art'></div>
+      <div class='art'>
+        <image class='art__item top' src='' />
+        <image class='art__item bottom' src='' />
+      </div>
       <div class='text'>
         <div class='song'>" + values[1] + "</div>
         <div class='artist'>" + values[0] + "</div>
@@ -86,12 +100,39 @@ render: (output) ->
 
 # Update the rendered output.
 update: (output, domEl) ->
+  # Get our pieces.
+  values = output.slice(0,-1).split(" ~ ")
+
+  baseurl = 'http://ws.audioscrobbler.com/2.0/?method=album.getinfo'
+  apikey = '2e8c49b69df3c1cf31aaa36b3ba1d166'
+  req = baseurl + '&artist=' + encodeURI(values[0]) + '&album=' + encodeURI(values[2]) + '&api_key=' + encodeURI(apikey)
+  albumArtwork = false
+  # albumArtwork = 'Sidebar.widget/Playbox.widget/as/default.png';
+
+  parseArtworkResponse = (data) ->
+    xml = $.parseXML(data)
+    $xml = $(xml)
+    artwork = $xml.find('image[size="large"]').text()
+    return artwork
+
+  getArtwork = (url, cb) ->
+    request = new XMLHttpRequest();
+    request.open('GET', url, true);
+    request.onload = ->
+        res = parseArtworkResponse(request.responseText)
+        cb(res)
+
+    request.onerror = ->
+      console.log('request.onerror');
+
+    request.send();
+
+  getArtwork( req, (artwork) ->
+      $(domEl).find('.art__item.top').attr('src', artwork)
+  )
 
   # Get our main DIV.
   div = $(domEl)
-
-  # Get our pieces.
-  values = output.slice(0,-1).split(" ~ ")
 
   # Initialize our HTML.
   medianowHTML = ''
@@ -103,7 +144,8 @@ update: (output, domEl) ->
   tWidth = $(domEl).width();
   tCurrent = (tPosition / tDuration) * tWidth
 
-  currArt = $(domEl).find('.art').css('background-image').split('/').pop().slice(0,-1)
+  # currArt = $(domEl).find('.art').css('background-image').split('/').pop().slice(0,-1)
+  currArt = $(domEl).find('.art__item.top').attr('src');
 
   if values[0] == 'NA'
     $(domEl).animate({ opacity: 0 }, 250)
@@ -113,11 +155,9 @@ update: (output, domEl) ->
     $(domEl).find('.artist').html(values[0])
     $(domEl).find('.album').html(values[2])
     $(domEl).find('.progress').css width: tCurrent
-    if tArtwork isnt currArt
-      if tArtwork =='NA'
-        $(domEl).find('.art').css('background-image', 'url(Sidebar.widget/Playbox.widget/as/default.png)')
-      else
-        $(domEl).find('.art').css('background-image', 'url('+tArtwork+')')
+    # if albumArtwork isnt currArt
+    #   console.log('album artwork is ' + albumArtwork)
+    # $(domEl).find('.art__item.top').attr('src', albumArtwork || 'Sidebar.widget/Playbox.widget/as/default.png')
 
   # Sort out flex-box positioning.
   $(domEl).parent('div').css('order', '7')
